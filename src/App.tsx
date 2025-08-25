@@ -112,8 +112,13 @@ const personalSchema = z.object({
   applyIfLess: z.enum(["yes", "no", "other"], {
     message: "Please select an option",
   }),
-
   applyIfLessOther: z.string().optional(),
+
+
+
+
+
+
 
   // optional if you want to handle NaN separately
 }).refine(
@@ -186,16 +191,21 @@ const App = () => {
     // later: send `data` to backend / email service
   };
 
-  const handleNext = async () => {
-    // pick fields for current step
-    const currentFields =
-      step === 1
-        ? Object.keys(personalSchema.shape)
-        : step === 2
-          ? Object.keys(jobSchema.shape)
-          : Object.keys(fullApplicationSchema.shape);
+  // Map step numbers to schema shapes
+  const stepSchemas: Record<number, Record<string, any>> = {
+    1: personalSchema.shape,
+    2: educationSchema.shape,
+    // 3: workEligibilitySchema.shape,
+    // 4: demographicsSchema.shape,
+    // 5: finalSchema.shape, // or {} if your final step has no inputs
+  };
 
-    // validate only current fields
+  const handleNext = async () => {
+    const currentFields = Object.keys(stepSchemas[step] ?? {});
+
+    console.log("Step:", step);
+    console.log("Validating fields:", currentFields);
+
     const isValid = await trigger(currentFields as (keyof FullApplicationForm)[]);
 
     if (isValid) {
