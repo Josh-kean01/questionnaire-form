@@ -5,9 +5,6 @@
 }
 
 @media (max-width: 600px) {
-  ::-webkit-input-placeholder,
-  ::-moz-placeholder,
-  :-ms-input-placeholder,
   ::placeholder {
     font-size: x-small;
   }
