@@ -85,59 +85,51 @@ const personalSchema = z.object({
   jobStartDate: z.date().optional(),
   jobEndDate: z.date().optional(),
   visaType: z.string().min(1, { message: "VISA Type is required" }),
+  eadStartDate: z.date({ error: "Please select a valid date" }),
+  eadEndDate: z.date({ error: "Please select a valid end date" }),
+  jobType: z.enum(["full", "intern", "both"], {
+    error: "Please select a job type",
+  }),
+  contractType: z.enum(["yes", "no"], {
+    error: "Please select Yes or No",
+  }),
+  preferredPositions: z
+    .string()
+    .min(1, "Preferred job positions are required")
+    .max(500, "Keep it concise (max 500 characters)"
+    ),
+  hourlyWage: z
+    .number()
+    .positive("Hourly wage must be greater than 0")
+    .max(1000, "Please enter a realistic hourly rate")
+    .optional(), // only validates if the user enters something
 
+  annualSalary: z
+    .number()
+    .min(1, "Annual salary must be at least 1 USD")
+    .max(1000000, "Please enter a realistic annual salary"),
+
+  applyIfLess: z.enum(["yes", "no", "other"], {
+    message: "Please select an option",
+  }),
+
+  applyIfLessOther: z.string().optional(),
 
   // optional if you want to handle NaN separately
-});
-//   firstName: z.string().min(2, "First name is required"),
-//   middleName: z.string().optional(),
-//   lastName: z.string().min(2, "Last name is required"),
-//   email: z.string().email("Invalid email"),
-//   phone: z.string().min(7, "Phone is required"),
-//   address: z.string().min(2, "Address is required"),
-//   city: z.string().min(2, "City is required"),
-//   state: z.string().min(2, "US State is required"),
-//   zip: z.string().min(2, "Zip is required"),
+}).refine(
+  (data) => {
+    if (data.applyIfLess === "other") {
+      return data.applyIfLessOther && data.applyIfLessOther.trim() !== "";
+    }
+    return true;
+  },
+  {
+    message: "Please specify your answer",
+    path: ["applyIfLessOther"],
+  }
+);
 
-//   // Work availability
-//   availableFrom: z.string().min(1, "Available from date is required"),
-//   nationality: z.string().min(2, "Nationality is required"),
-//   linkedInUrl: z
-//     .string()
-//     .min(2, "LinkedIn URL is required")
-//     .refine(
-//       (val) => val === "NA" || val.startsWith("http"),
-//       "Must be a valid LinkedIn URL or NA"
-//     ),
 
-//   // Work experience
-//   experienceYears: z.coerce.number().min(0, "Experience is required"),
-//   previousJobTitle: z.string().optional(),
-//   previousJobStart: z.string().optional(),
-//   previousJobEnd: z.string().optional(),
-
-//   // Visa / EAD
-//   visaType: z.string().min(2, "VISA type is required"),
-//   eadStart: z.string().min(1, "EAD Start Date is required"),
-//   eadEnd: z.string().min(1, "EAD End Date is required"),
-
-//   // Job preferences
-//   jobType: z.enum(["Full Time", "Internship"], {
-//     required_error: "Job type is required",
-//   }),
-//   contractJobs: z.enum(["Yes", "No"], {
-//     required_error: "Contract job preference is required",
-//   }),
-//   preferredPositions: z.string().min(2, "Preferred job positions are required"),
-
-//   // Compensation
-//   hourlyWage: z.coerce.number().optional(),
-//   annualSalary: z.coerce.number().min(1, "Annual salary expectation is required"),
-//   flexibleSalary: z.enum(["Yes", "No", "Other"], {
-//     required_error: "Please specify if we can apply for lower salary jobs",
-//   }),
-//   flexibleSalaryOther: z.string().optional(),
-// });
 
 const jobSchema = z.object({
   position: z.string().min(2, "Position is required"),
@@ -160,10 +152,24 @@ type FullApplicationForm = z.infer<typeof fullApplicationSchema>;
 
 
 const App = () => {
-  const { register, handleSubmit, formState: { errors }, control } = useForm<FullApplicationForm>({
+  // const { register, handleSubmit, watch, setError, getValues, trigger, setFocus, formState: { errors }, control } = useForm<FullApplicationForm>({
+  const { register, handleSubmit, watch, trigger, setFocus, formState: { errors }, control } = useForm<FullApplicationForm>({
     resolver: zodResolver(fullApplicationSchema),
+    mode: "onChange",       // 👈 validates while typing
+    reValidateMode: "onChange", // 👈 re-validates while typing
   });
 
+  // const validateStep = (schema: z.ZodTypeAny) => {
+  //   const values = getValues();
+  //   const result = schema.safeParse(values);
+  //   if (!result.success) {
+  //     result.error.issues.forEach((issue) => {
+  //       setError(issue.path[0] as any, { message: issue.message });
+  //     });
+  //     return false;
+  //   }
+  //   return true;
+  // };
 
   const [step, setStep] = useState(1);
   const totalSteps = 5;
@@ -180,6 +186,28 @@ const App = () => {
     // later: send `data` to backend / email service
   };
 
+  const handleNext = async () => {
+    // pick fields for current step
+    const currentFields =
+      step === 1
+        ? Object.keys(personalSchema.shape)
+        : step === 2
+          ? Object.keys(jobSchema.shape)
+          : Object.keys(fullApplicationSchema.shape);
+
+    // validate only current fields
+    const isValid = await trigger(currentFields as (keyof FullApplicationForm)[]);
+
+    if (isValid) {
+      go(1); // ✅ move to next step
+    } else {
+      // ❌ focus the first invalid field
+      const firstErrorField = Object.keys(errors)[0];
+      if (firstErrorField) {
+        setFocus(firstErrorField as keyof FullApplicationForm);
+      }
+    }
+  };
 
   return (
     <div className="">
@@ -353,7 +381,7 @@ const App = () => {
                   </div>
                   <div>
                     <Label className="mb-2">Your LinkedIn URL <Asterisk /></Label>
-                    <Input placeholder="Paste your LinkedIn URL" {...register("linkedin")} />
+                    <Input placeholder=" Enter NA only if you do not have a LinkedIn." {...register("linkedin")} />
                     {errors.linkedin ? (
                       <p className="text-xs text-red-600 mt-1">{errors.linkedin.message}</p>
                     ) : (
@@ -426,29 +454,66 @@ const App = () => {
                         <div>
                           <Input
                             {...field}
-                            placeholder="For example, OPT, STEM OPT, H1B, H4 or CPT"
                           />
                           {errors.visaType ? (
                             <p className="text-red-500 text-sm">{errors.visaType.message}</p>
-                          ) : (<p className="text-xs text-muted-foreground mt-1">
-                            For example, OPT, H1B or CPT
-                          </p>)}
+                          ) : (
+                            <p className="text-xs text-muted-foreground mt-1">For example, OPT, H1B or CPT</p>
+                          )}
 
                         </div>
                       )}
                     />
-                    <p className="text-xs text-muted-foreground mt-1">For example, OPT, H1B or CPT</p>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <Label className="mb-2">EAD Start Date <Asterisk /></Label>
-                      <Input type="date" required />
-                      <p className="text-xs text-muted-foreground mt-1">If you are a GC holder or USA Citizen mention 00/00/00</p>
+                      <Controller
+                        name="eadStartDate"
+                        control={control}
+                        render={({ field }) => (
+                          <DatePicker
+                            selected={field.value}
+                            onChange={field.onChange}
+                            className="w-full border rounded-md p-2"
+                            placeholderText="MM/DD/YYYY"
+                            dateFormat="MM/dd/yyyy"
+                          />
+                        )}
+                      />
+                      {errors.eadStartDate ? (
+                        <p className="text-xs text-red-600 mt-1">
+                          {errors.eadStartDate.message}
+                        </p>
+                      ) : (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          If you are a GC holder or USA Citizen mention 00/00/00
+                        </p>
+                      )}
+
                     </div>
                     <div>
                       <Label className="mb-2">EAD End Date <Asterisk /></Label>
-                      <Input type="date" required />
-                      <p className="text-xs text-muted-foreground mt-1">If you are a GC holder or USA Citizen mention 00/00/00</p>
+                      <Controller
+                        name="eadEndDate"
+                        control={control}
+                        render={({ field }) => (
+                          <DatePicker
+                            selected={field.value}
+                            onChange={field.onChange}
+                            className="w-full border rounded-md p-2"
+                            placeholderText="MM/DD/YYYY"
+                            dateFormat="MM/dd/yyyy"
+                          />
+                        )}
+                      />
+                      {errors.eadEndDate ? (
+                        <p className="text-xs text-red-600 mt-1">{errors.eadEndDate.message}</p>
+                      ) : (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          If you are a GC holder or USA Citizen mention 00/00/00
+                        </p>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -456,60 +521,152 @@ const App = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <Label className="mb-2">Apply for Full time jobs or internships? <Asterisk /></Label>
-                    <Select>
-                      <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="full">Full Time</SelectItem>
-                        <SelectItem value="intern">Internship</SelectItem>
-                        <SelectItem value="both">Both</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <Controller
+                      name="jobType"
+                      control={control}
+                      render={({ field }) => (
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Select" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="full">Full Time</SelectItem>
+                            <SelectItem value="intern">Internship</SelectItem>
+                            <SelectItem value="both">Both</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      )}
+                    />
+                    {errors.jobType && (
+                      <p className="text-xs text-red-600 mt-1">{errors.jobType.message}</p>
+                    )}
                   </div>
                   <div>
-                    <Label className="mb-2">Apply for W2 or 1099 jobs as well (Contract Jobs)? <Asterisk /></Label>
-                    <Select>
-                      <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="yes">Yes</SelectItem>
-                        <SelectItem value="no">No</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <Label className="mb-2">
+                      Apply for W2 or 1099 jobs as well (Contract Jobs)? <Asterisk />
+                    </Label>
+                    <Controller
+                      name="contractType"
+                      control={control}
+                      render={({ field }) => (
+
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="yes">Yes</SelectItem>
+                            <SelectItem value="no">No</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      )}
+                    />
+                    {errors.contractType && (
+                      <p className="text-xs text-red-600 mt-1">{errors.contractType.message}</p>
+                    )}
                   </div>
                 </div>
 
                 <div>
-                  <Label className="mb-2">Preferred job positions <Asterisk /></Label>
-                  <Textarea placeholder="For example, 1. Project Manager 2. Assistant Project Manager 3. Human Resource Manager" required />
-                  <p className="text-xs text-muted-foreground mt-1">Ex, Software Developer, Project Manager, Business Analyst</p>
+                  <Label className="mb-2">
+                    Preferred job positions <Asterisk />
+                  </Label>
+                  <Textarea
+                    {...register("preferredPositions")}
+                    placeholder="For example, 1. Project Manager 2. Assistant Project Manager 3. Human Resource Manager"
+                  />
+                  {errors.preferredPositions && (
+                    <p className="text-xs text-red-600 mt-1">
+                      {errors.preferredPositions.message}
+                    </p>
+                  )}
+                  {!errors.preferredPositions && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Ex, Software Developer, Project Manager, Business Analyst
+                    </p>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <Label className="mb-2">Hourly wage expectation</Label>
-                    <Input placeholder="USD" />
+                    <div>
+                      <Label className="mb-2">Hourly wage expectation</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        {...register("hourlyWage", { valueAsNumber: true })}
+                        placeholder="USD"
+                      />
+                      {errors.hourlyWage && (
+                        <p className="text-xs text-red-600 mt-1">
+                          {errors.hourlyWage.message}
+                        </p>
+                      )}
+                    </div>
+
                   </div>
                   <div>
-                    <Label className="mb-2">Annual salary expectation <Asterisk /></Label>
-                    <Input placeholder="USD" required />
+                    <div>
+                      <Label className="mb-2">
+                        Annual salary expectation <Asterisk />
+                      </Label>
+                      <Input
+                        type="number"
+                        step="1000"
+                        {...register("annualSalary", { valueAsNumber: true })}
+                        placeholder="USD"
+                        required
+                      />
+                      {errors.annualSalary && (
+                        <p className="text-xs text-red-600 mt-1">
+                          {errors.annualSalary.message}
+                        </p>
+                      )}
+                    </div>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <Label className="mb-2">If a company offers less than your expectation, can we apply? <Asterisk /></Label>
-                    <Select>
-                      <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="yes">Yes</SelectItem>
-                        <SelectItem value="no">No</SelectItem>
-                        <SelectItem value="other">Other</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-muted-foreground mt-1">Ex: You expect $100k but company offers 65–85k. Can we apply at the max they offer?</p>
+                    <Controller
+                      name="applyIfLess"
+                      control={control}
+                      render={({ field }) => (
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="yes">Yes</SelectItem>
+                            <SelectItem value="no">No</SelectItem>
+                            <SelectItem value="other">Other</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      )}
+                    />
+                    {errors.applyIfLess && (
+                      <p className="text-xs text-red-600 mt-1">{errors.applyIfLess.message}</p>
+                    )}
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Ex: You expect $100k but company offers 65–85k. Can we apply at the max they offer?
+                    </p>
                   </div>
                   <div>
-                    <Label className="mb-2">If you answered 'Other', please specify</Label>
-                    <Input />
+                    {watch("applyIfLess") === "other" && (
+                      <div className="">
+                        <Label className="mb-2">
+                          If you answered 'Other', please specify
+                        </Label>
+                        <Input {...register("applyIfLessOther")} placeholder="Explain here..." />
+                        {errors.applyIfLessOther && (
+                          <p className="text-xs text-red-600 mt-1">
+                            {errors.applyIfLessOther.message}
+                          </p>
+                        )}
+                      </div>
+                    )}
+
                   </div>
                 </div>
               </Section>
@@ -892,15 +1049,37 @@ const App = () => {
         <div className="mt-6">
           <div className="mx-auto max-w-5xl flex items-center justify-between gap-4 rounded-2xl bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60 shadow-lg border p-3">
 
-            <div className="flex gap-2 justify-between w-full">
-              <Button variant="outline" onClick={() => go(-1)} disabled={step <= 1}>  Back</Button>
+            {/* <div className="flex gap-2 justify-between w-full">
+              <Button variant="outline" onClick={() => go(-1)} disabled={step <= 1}>Back</Button>
 
               {step < totalSteps ? (
                 <Button type="button" onClick={() => go(1)}>Next</Button>
               ) : (
                 <Button type="submit">Submit</Button>
               )}
+            </div> */}
+
+            <div className="flex gap-2 justify-between w-full">
+              <Button
+                variant="outline"
+                onClick={() => go(-1)}
+                disabled={step <= 1}
+              >
+                Back
+              </Button>
+
+              {step < totalSteps ? (
+                <Button
+                  type="button"
+                  onClick={handleNext}
+                >
+                  Next
+                </Button>
+              ) : (
+                <Button type="submit">Submit</Button>
+              )}
             </div>
+
           </div>
         </div>
 
