@@ -135,6 +135,11 @@ const personalSchema = z.object({
 );
 
 
+const educationSchema = z.object({
+  degree: z.string().min(2, "Degree is required"),
+  institution: z.string().min(2, "Institution is required"),
+  graduationYear: z.number().int().min(1900).max(new Date().getFullYear()),
+});
 
 const jobSchema = z.object({
   position: z.string().min(2, "Position is required"),
@@ -142,11 +147,6 @@ const jobSchema = z.object({
   skills: z.array(z.string()).optional(),
 });
 
-const educationSchema = z.object({
-  degree: z.string().min(2, "Degree is required"),
-  institution: z.string().min(2, "Institution is required"),
-  graduationYear: z.number().int().min(1900).max(new Date().getFullYear()),
-});
 
 // Merge all into one schema
 export const fullApplicationSchema = personalSchema
@@ -201,23 +201,30 @@ const App = () => {
   };
 
   const handleNext = async () => {
+    // force Safari/iOS to commit last typed value
+    (document.activeElement as HTMLElement)?.blur();
+
     const currentFields = Object.keys(stepSchemas[step] ?? {});
 
-    console.log("Step:", step);
-    console.log("Validating fields:", currentFields);
+    // log actual form state before validation
+    console.log("👉 Step:", step);
+    console.log("👉 Fields to validate:", currentFields);
+    console.log("👉 Current values:", getValues());
 
     const isValid = await trigger(currentFields as (keyof FullApplicationForm)[]);
 
+    console.log("👉 Valid?", isValid, "Errors:", errors);
+
     if (isValid) {
-      go(1); // ✅ move to next step
+      go(1);
     } else {
-      // ❌ focus the first invalid field
       const firstErrorField = Object.keys(errors)[0];
       if (firstErrorField) {
         setFocus(firstErrorField as keyof FullApplicationForm);
       }
     }
   };
+
 
   return (
     <div className="">
