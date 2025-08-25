@@ -6,7 +6,7 @@
 
 @media (max-width: 600px) {
   ::placeholder {
-    font-size: x-small;
+    font-size: small;
   }
 }
 
