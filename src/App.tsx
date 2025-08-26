@@ -1,3 +1,7 @@
+"use client"
+
+import type React from "react"
+
 import { useState, type SetStateAction } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -201,30 +205,26 @@ const App = () => {
   };
 
   const handleNext = async () => {
-    // force Safari/iOS to commit last typed value
-    (document.activeElement as HTMLElement)?.blur();
-
     const currentFields = Object.keys(stepSchemas[step] ?? {});
 
-    // log actual form state before validation
-    console.log("👉 Step:", step);
-    console.log("👉 Fields to validate:", currentFields);
-    console.log("👉 Current values:", getValues());
+    console.log("Step:", step);
+    console.log("Validating fields:", currentFields);
+
+    // console.log("Form values:", getValues());
+    // console.log("Errors:", errors);
 
     const isValid = await trigger(currentFields as (keyof FullApplicationForm)[]);
 
-    console.log("👉 Valid?", isValid, "Errors:", errors);
-
     if (isValid) {
-      go(1);
+      go(1); // ✅ move to next step
     } else {
+      // ❌ focus the first invalid field
       const firstErrorField = Object.keys(errors)[0];
       if (firstErrorField) {
         setFocus(firstErrorField as keyof FullApplicationForm);
       }
     }
   };
-
 
   return (
     <div className="">
