@@ -1,8 +1,5 @@
 "use client"
-
-import type React from "react"
-
-import { useState, type SetStateAction } from "react"
+import React, { useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -11,13 +8,10 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { User, GraduationCap, BriefcaseBusiness, ClipboardList, Globe2 } from "lucide-react"
 import { motion } from "framer-motion"
-import "./globals.css"
-import "react-datepicker/dist/react-datepicker.css"
 import DatePicker from "react-datepicker"
-
-import { z } from "zod"
 import { useForm, Controller } from "react-hook-form"
-import { zodResolver } from "@hookform/resolvers/zod"
+import { yupResolver } from "@hookform/resolvers/yup"
+import * as Yup from "yup"
 
 function Asterisk() {
     return <span className="text-red-600 text-xs">*</span>
@@ -34,201 +28,96 @@ function Section({ icon: Icon, title, children }: SectionProps) {
         <div className="space-y-5">
             <div className="flex items-center gap-3">
                 {Icon && <Icon className="w-5 h-5" />}
-                <div>
-                    <h2 className="text-xl font-semibold leading-tight">{title}</h2>
-                </div>
+                <h2 className="text-xl font-semibold leading-tight">{title}</h2>
             </div>
             <div className="grid gap-4">{children}</div>
         </div>
     )
 }
 
-type TextareaWithCounterProps = {
-    maxLength?: number
-    value: string
-    onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void
-    placeholder?: string
-    required?: boolean
-}
-
-function TextareaWithCounter({ maxLength, value, onChange, placeholder, required }: TextareaWithCounterProps) {
-    const remaining = (maxLength ?? 0) - (value?.length ?? 0)
-    return (
-        <div className="space-y-1.5">
-            <Textarea maxLength={maxLength} value={value} onChange={onChange} placeholder={placeholder} required={required} />
-            {maxLength && (
-                <div className="text-xs text-muted-foreground text-right">
-                    {remaining} of {maxLength} character(s) left
-                </div>
-            )}
-        </div>
-    )
-}
-
-const personalSchema = z.object({
-    firstName: z.string().min(2, "First name is required"),
-    middleName: z.string().optional(),
-    lastName: z.string().min(2, "Last name is required"),
-    email: z.string().email("Invalid email"),
-    phone: z.string().min(7, "Phone is required"),
-    address: z.string().min(2, "Address is required"),
-    city: z.string().min(2, "City is required"),
-    state: z.string().min(2, "US State is required"),
-    zip: z.string().regex(/^\d{5}$/, { message: "Zip must be exactly 5 digits" }),
-    availableFrom: z.date().min(new Date(), "Date cannot be in the past"),
-    nationality: z.string().min(2),
-    linkedin: z
-        .string()
-        .trim()
-        .regex(/^(na|NA|https?:\/\/(www\.)?linkedin\.com\/.*)$/i, { message: "Enter a valid LinkedIn URL or 'NA'" }),
-    yearsOfExperience: z.number().min(0, { message: "Experience must be 0 or more" }).or(z.nan()),
-    previousJobTitle: z.string().optional(),
-    jobStartDate: z.date().optional(),
-    jobEndDate: z.date().optional(),
-    visaType: z.string().min(1, { message: "VISA Type is required" }),
-    eadStartDate: z.date({ error: "Please select a valid date" }),
-    eadEndDate: z.date({ error: "Please select a valid end date" }),
-    jobType: z.enum(["full", "intern", "both"], {
-        error: "Please select a job type",
-    }),
-    contractType: z.enum(["yes", "no"], {
-        error: "Please select Yes or No",
-    }),
-    preferredPositions: z
-        .string()
+const schema = Yup.object({
+    // Personal Information (Step 1)
+    firstName: Yup.string().min(2, "First name is required").required("First name is required"),
+    middleName: Yup.string().notRequired(),
+    lastName: Yup.string().min(2, "Last name is required").required("Last name is required"),
+    email: Yup.string().email("Invalid email").required("Email is required"),
+    phone: Yup.string().min(7, "Phone is required").required("Phone is required"),
+    address: Yup.string().min(2, "Address is required").required("Address is required"),
+    city: Yup.string().min(2, "City is required").required("City is required"),
+    state: Yup.string().min(2, "US State is required").required("US State is required"),
+    zip: Yup.string().matches(/^\d{5}$/, "Zip must be exactly 5 digits").required("Zip is required"),
+    availableFrom: Yup.date().min(new Date(), "Date cannot be in the past").required("Available from is required"),
+    nationality: Yup.string().min(2, "Nationality is required").required("Nationality is required"),
+    linkedin: Yup.string()
+        .matches(/^(na|NA|https?:\/\/(www\.)?linkedin\.com\/.*)$/i, "Enter a valid LinkedIn URL or 'NA'")
+        .required("LinkedIn URL is required"),
+    // Education (Step 2)
+    degree: Yup.string().min(2, "Degree is required").required("Degree is required"),
+    institution: Yup.string().min(2, "Institution is required").required("Institution is required"),
+    graduationYear: Yup.number()
+        .integer()
+        .min(1900)
+        .max(new Date().getFullYear())
+        .required("Graduation year is required"),
+    // Work Eligibility (Step 3)
+    position: Yup.string().min(2, "Position is required").required("Position is required"),
+    experienceYears: Yup.number().min(0, "Invalid number").required("Experience years is required"),
+    visaType: Yup.string().min(1, "VISA Type is required").required("VISA Type is required"),
+    eadStartDate: Yup.date().required("EAD Start Date is required"),
+    eadEndDate: Yup.date().required("EAD End Date is required"),
+    // Preferences (Step 4)
+    jobType: Yup.string().oneOf(["full", "intern", "both"], "Please select a job type").required("Job type is required"),
+    contractType: Yup.string().oneOf(["yes", "no"], "Please select Yes or No").required("Contract type is required"),
+    preferredPositions: Yup.string()
         .min(1, "Preferred job positions are required")
-        .max(500, "Keep it concise (max 500 characters)"),
-    hourlyWage: z
-        .number()
+        .max(500, "Keep it concise (max 500 characters)")
+        .required("Preferred positions are required"),
+    hourlyWage: Yup.number()
         .positive("Hourly wage must be greater than 0")
         .max(1000, "Please enter a realistic hourly rate")
-        .optional(),
-    annualSalary: z
-        .number()
+        .notRequired(),
+    annualSalary: Yup.number()
         .min(1, "Annual salary must be at least 1 USD")
-        .max(1000000, "Please enter a realistic annual salary"),
-    applyIfLess: z.enum(["yes", "no", "other"], {
-        message: "Please select an option",
+        .max(1000000, "Please enter a realistic annual salary")
+        .required("Annual salary is required"),
+    applyIfLess: Yup.string()
+        .oneOf(["yes", "no", "other"], "Please select an option")
+        .required("Please select an option"),
+    applyIfLessOther: Yup.string().when("applyIfLess", {
+        is: "other",
+        then: (schema) => schema.required("Please specify your answer"),
+        otherwise: (schema) => schema.notRequired(),
     }),
-    applyIfLessOther: z.string().optional(),
+    // Demographics (Step 5)
+    gender: Yup.string().required("Gender is required"),
+    isHispanic: Yup.string().required("Hispanic/Latino status is required"),
+    race: Yup.string().required("Race is required"),
+    isVeteran: Yup.string().required("Veteran status is required"),
+    hasDisability: Yup.string().required("Disability status is required"),
+    messageToHM: Yup.string().max(10000, "Message too long").required("Message to Hiring Manager is required"),
+    messageToSpecialist: Yup.string()
+        .max(100000, "Message too long")
+        .required("Message to Specialist is required"),
 })
 
-const educationSchema = z.object({
-    degree: z.string().min(2, "Degree is required"),
-    institution: z.string().min(2, "Institution is required"),
-    graduationYear: z.number().int().min(1900).max(new Date().getFullYear()),
-})
-
-const jobSchema = z.object({
-    position: z.string().min(2, "Position is required"),
-    experienceYears: z.number().min(0, "Invalid number"),
-    skills: z.array(z.string()).optional(),
-})
-
-const fullApplicationSchema = z
-    .object({
-        // Personal fields
-        firstName: z.string().min(2, "First name is required"),
-        middleName: z.string().optional(),
-        lastName: z.string().min(2, "Last name is required"),
-        email: z.string().email("Invalid email"),
-        phone: z.string().min(7, "Phone is required"),
-        address: z.string().min(2, "Address is required"),
-        city: z.string().min(2, "City is required"),
-        state: z.string().min(2, "US State is required"),
-        zip: z.string().regex(/^\d{5}$/, { message: "Zip must be exactly 5 digits" }),
-        availableFrom: z.date().min(new Date(), "Date cannot be in the past"),
-        nationality: z.string().min(2),
-        linkedin: z
-            .string()
-            .trim()
-            .regex(/^(na|NA|https?:\/\/(www\.)?linkedin\.com\/.*)$/i, { message: "Enter a valid LinkedIn URL or 'NA'" }),
-        yearsOfExperience: z.number().min(0, { message: "Experience must be 0 or more" }).or(z.nan()),
-        previousJobTitle: z.string().optional(),
-        jobStartDate: z.date().optional(),
-        jobEndDate: z.date().optional(),
-        visaType: z.string().min(1, { message: "VISA Type is required" }),
-        eadStartDate: z.date({ error: "Please select a valid date" }),
-        eadEndDate: z.date({ error: "Please select a valid end date" }),
-        jobType: z.enum(["full", "intern", "both"], {
-            error: "Please select a job type",
-        }),
-        contractType: z.enum(["yes", "no"], {
-            error: "Please select Yes or No",
-        }),
-        preferredPositions: z
-            .string()
-            .min(1, "Preferred job positions are required")
-            .max(500, "Keep it concise (max 500 characters)"),
-        hourlyWage: z
-            .number()
-            .positive("Hourly wage must be greater than 0")
-            .max(1000, "Please enter a realistic hourly rate")
-            .optional(),
-        annualSalary: z
-            .number()
-            .min(1, "Annual salary must be at least 1 USD")
-            .max(1000000, "Please enter a realistic annual salary"),
-        applyIfLess: z.enum(["yes", "no", "other"], {
-            message: "Please select an option",
-        }),
-        applyIfLessOther: z.string().optional(),
-        // Education fields
-        degree: z.string().min(2, "Degree is required"),
-        institution: z.string().min(2, "Institution is required"),
-        graduationYear: z.number().int().min(1900).max(new Date().getFullYear()),
-        // Job fields
-        position: z.string().min(2, "Position is required"),
-        experienceYears: z.number().min(0, "Invalid number"),
-        skills: z.array(z.string()).optional(),
-    })
-    .refine(
-        (data) => {
-            if (data.applyIfLess === "other") {
-                return data.applyIfLessOther && data.applyIfLessOther.trim() !== ""
-            }
-            return true
-        },
-        {
-            message: "Please specify your answer",
-            path: ["applyIfLessOther"],
-        },
-    )
-
-type FullApplicationForm = z.infer<typeof fullApplicationSchema>
+type FormData = Yup.InferType<typeof schema>
 
 const App = () => {
     const {
         register,
         handleSubmit,
-        watch,
-        trigger,
-        setFocus,
-        formState: { errors },
         control,
-        getValues,
-        formState,
-    } = useForm<FullApplicationForm>({
-        resolver: zodResolver(fullApplicationSchema),
+        formState: { errors },
+        trigger,
+    } = useForm({
+        resolver: yupResolver(schema),
         mode: "onChange",
-        reValidateMode: "onChange",
     })
 
     const [step, setStep] = useState(1)
     const totalSteps = 5
 
-    // textareas w/ counters
-    const [travelMilesNotes, setTravelMilesNotes] = useState("")
-    const [msgHM, setMsgHM] = useState("")
-    const [msgSpecialist, setMsgSpecialist] = useState("")
-
-    const go = (dir: number) => setStep((s) => Math.min(totalSteps, Math.max(1, s + dir)))
-
-    const onSubmit = (data: FullApplicationForm) => {
-        console.log("Form submitted:", data)
-    }
-
-    const stepFields: Record<number, (keyof FullApplicationForm)[]> = {
+    const stepFields: Record<number, (keyof FormData)[]> = {
         1: [
             "firstName",
             "middleName",
@@ -244,103 +133,26 @@ const App = () => {
             "linkedin",
         ],
         2: ["degree", "institution", "graduationYear"],
-        3: ["position", "experienceYears", "skills"],
-        4: ["visaType", "eadStartDate", "eadEndDate"],
-        5: [
-            "jobType",
-            "contractType",
-            "preferredPositions",
-            "hourlyWage",
-            "annualSalary",
-            "applyIfLess",
-            "applyIfLessOther",
-        ],
+        3: ["position", "experienceYears", "visaType", "eadStartDate", "eadEndDate"],
+        4: ["jobType", "contractType", "preferredPositions", "hourlyWage", "annualSalary", "applyIfLess", "applyIfLessOther"],
+        5: ["gender", "isHispanic", "race", "isVeteran", "hasDisability", "messageToHM", "messageToSpecialist"],
     }
 
     const nextStep = async () => {
-        console.log("[v0] nextStep called, current step:", step)
-
-        try {
-            // Get current form values
-            const values = getValues()
-            const currentStepFields = stepFields[step] || []
-
-            // Manual validation for current step
-            let hasErrors = false
-            const currentErrors: Record<string, string> = {}
-
-            for (const fieldName of currentStepFields) {
-                const value = values[fieldName]
-
-                // Basic validation checks
-                if (fieldName === "firstName" && (!value || (value as string).length < 2)) {
-                    currentErrors[fieldName] = "First name is required"
-                    hasErrors = true
-                }
-                if (fieldName === "lastName" && (!value || (value as string).length < 2)) {
-                    currentErrors[fieldName] = "Last name is required"
-                    hasErrors = true
-                }
-                if (fieldName === "email" && (!value || !/\S+@\S+\.\S+/.test(value as string))) {
-                    currentErrors[fieldName] = "Invalid email"
-                    hasErrors = true
-                }
-                if (fieldName === "phone" && (!value || (value as string).length < 7)) {
-                    currentErrors[fieldName] = "Phone is required"
-                    hasErrors = true
-                }
-                if (fieldName === "address" && (!value || (value as string).length < 2)) {
-                    currentErrors[fieldName] = "Address is required"
-                    hasErrors = true
-                }
-                if (fieldName === "city" && (!value || (value as string).length < 2)) {
-                    currentErrors[fieldName] = "City is required"
-                    hasErrors = true
-                }
-                if (fieldName === "state" && (!value || (value as string).length < 2)) {
-                    currentErrors[fieldName] = "US State is required"
-                    hasErrors = true
-                }
-                if (fieldName === "zip" && (!value || !/^\d{5}$/.test(value as string))) {
-                    currentErrors[fieldName] = "Zip must be exactly 5 digits"
-                    hasErrors = true
-                }
-            }
-
-            console.log("[v0] Manual validation result:", !hasErrors)
-            console.log("[v0] Current errors:", currentErrors)
-
-            if (!hasErrors) {
-                console.log("[v0] Validation passed, moving to next step")
-                setStep((prev) => {
-                    const nextStepValue = prev + 1
-                    console.log("[v0] Setting step from", prev, "to", nextStepValue)
-                    return nextStepValue
-                })
-            } else {
-                console.log("[v0] Validation failed, staying on current step")
-
-                // Focus first error field
-                const firstErrorField = Object.keys(currentErrors)[0]
-                if (firstErrorField) {
-                    const element = document.querySelector(`[name="${firstErrorField}"]`) as HTMLElement
-                    element?.focus()
-                }
-            }
-        } catch (error) {
-            console.error("[v0] Validation error:", error)
+        const isValid = await trigger(stepFields[step])
+        if (isValid && step < totalSteps) {
+            setStep((prev) => prev + 1)
         }
     }
 
     const prevStep = () => {
-        console.log("[v0] prevStep called, current step:", step)
         if (step > 1) {
-            setStep((prev) => {
-                const prevStepValue = prev - 1
-                console.log("[v0] Setting step from", prev, "to", prevStepValue)
-                return prevStepValue
-            })
+            setStep((prev) => prev - 1)
         }
+    }
+
+    const onSubmit = (data: any) => {
+        console.log("Form submitted:", data)
     }
 
     return (
@@ -348,31 +160,31 @@ const App = () => {
             {/* Header */}
             <div className="mb-6 text-center header">
                 <div className="flex flex-row max-w-5xl mx-auto py-3">
-                    <motion.div className="">
-                        <motion.div
-                            initial={{ opacity: 0, x: -20 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            transition={{ duration: 0.5 }}
-                            className="h-32 w-32 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center text-white font-bold text-2xl"
-                        >
-                            OS
-                        </motion.div>
+                    <motion.div
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ duration: 0.5 }}
+                        className="h-32 w-32 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center text-white font-bold text-2xl"
+                    >
+                        OS
                     </motion.div>
                     <div className="flex flex-col items-start justify-center pt-4">
                         <motion.div
-                            className="text-3xl font-bold text-white bg-clip-text bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 ocean"
+                            className="text-3xl font-bold text-white bg-clip-text bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500"
                             initial={{ opacity: 0, y: -20 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ duration: 0.5 }}
                         >
                             OCEANSMITH.
                         </motion.div>
-                        <div className="text-1xl font-semibold text-muted-foreground subtitle">
-                            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-                                {" "}
-                                Job Hunt Made Easy
-                            </motion.div>
-                        </div>
+                        <motion.div
+                            className="text-1xl font-semibold text-muted-foreground"
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ duration: 0.5 }}
+                        >
+                            Job Hunt Made Easy
+                        </motion.div>
                     </div>
                 </div>
             </div>
@@ -380,71 +192,57 @@ const App = () => {
             <form className="max-w-5xl mx-auto p-4" onSubmit={handleSubmit(onSubmit)}>
                 <Card className="shadow-xl rounded-2xl">
                     <CardContent className="px-6 space-y-5">
-                        {/* STEP 1 */}
+                        {/* STEP 1: Personal Information */}
                         {step === 1 && (
                             <Section icon={User} title="Personal Information">
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                    <div className="md:col-span-1">
-                                        <Label className="mb-2">
-                                            First Name <Asterisk />
-                                        </Label>
+                                    <div>
+                                        <Label className="mb-2">First Name <Asterisk /></Label>
                                         <Input {...register("firstName")} />
                                         {errors.firstName && <p className="text-xs text-red-600 mt-1">{errors.firstName.message}</p>}
                                     </div>
-                                    <div className="md:col-span-1">
+                                    <div>
                                         <Label className="mb-2">Middle Name</Label>
-                                        <Input />
+                                        <Input {...register("middleName")} />
                                     </div>
-                                    <div className="md:col-span-1">
-                                        <Label className="mb-2">
-                                            Last Name <Asterisk />
-                                        </Label>
+                                    <div>
+                                        <Label className="mb-2">Last Name <Asterisk /></Label>
                                         <Input {...register("lastName")} />
                                         {errors.lastName && <p className="text-xs text-red-600 mt-1">{errors.lastName.message}</p>}
                                     </div>
                                 </div>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
-                                        <Label className="mb-2">
-                                            Email <Asterisk />
-                                        </Label>
+                                        <Label className="mb-2">Email <Asterisk /></Label>
                                         <Input type="email" {...register("email")} />
                                         {errors.email && <p className="text-xs text-red-600 mt-1">{errors.email.message}</p>}
                                     </div>
                                     <div>
-                                        <Label className="mb-2">
-                                            Phone <Asterisk />
-                                        </Label>
+                                        <Label className="mb-2">Phone <Asterisk /></Label>
                                         <Input type="tel" {...register("phone")} />
                                         {errors.phone && <p className="text-xs text-red-600 mt-1">{errors.phone.message}</p>}
                                     </div>
                                 </div>
                                 <div className="grid grid-cols-1 gap-4">
                                     <div>
-                                        <Label className="mb-2">
-                                            Address <Asterisk />
-                                        </Label>
+                                        <Label className="mb-2">Address <Asterisk /></Label>
                                         <Input {...register("address")} />
                                         {errors.address && <p className="text-xs text-red-600 mt-1">{errors.address.message}</p>}
                                     </div>
                                     <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                                         <div className="md:col-span-2">
-                                            <Label className="mb-2">
-                                                City <Asterisk />
-                                            </Label>
+                                            <Label className="mb-2">City <Asterisk /></Label>
                                             <Input {...register("city")} />
                                             {errors.city && <p className="text-xs text-red-600 mt-1">{errors.city.message}</p>}
                                         </div>
                                         <div>
-                                            <Label className="mb-2">
-                                                US State <Asterisk />
-                                            </Label>
+                                            <Label className="mb-2">US State <Asterisk /></Label>
                                             <Controller
-                                                name="state" // <-- field name
-                                                control={control} // <-- comes from useForm
+                                                name="state"
+                                                control={control}
                                                 render={({ field }) => (
                                                     <Select onValueChange={field.onChange} value={field.value}>
-                                                        <SelectTrigger className="w-full">
+                                                        <SelectTrigger>
                                                             <SelectValue placeholder="Select a state" />
                                                         </SelectTrigger>
                                                         <SelectContent>
@@ -502,22 +300,18 @@ const App = () => {
                                                     </Select>
                                                 )}
                                             />
-                                            {errors.state && <p className="text-red-500">{errors.state.message}</p>}
+                                            {errors.state && <p className="text-xs text-red-600 mt-1">{errors.state.message}</p>}
                                         </div>
                                         <div>
-                                            <Label className="mb-2">
-                                                Zip <Asterisk />
-                                            </Label>
+                                            <Label className="mb-2">Zip <Asterisk /></Label>
                                             <Input {...register("zip")} />
                                             {errors.zip && <p className="text-xs text-red-600 mt-1">{errors.zip.message}</p>}
                                         </div>
                                     </div>
                                 </div>
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
-                                        <Label className="mb-2">
-                                            Available to work from <Asterisk />
-                                        </Label>
+                                        <Label className="mb-2">Available to work from <Asterisk /></Label>
                                         <Controller
                                             name="availableFrom"
                                             control={control}
@@ -531,51 +325,74 @@ const App = () => {
                                                 />
                                             )}
                                         />
+                                        {errors.availableFrom && (
+                                            <p className="text-xs text-red-600 mt-1">{errors.availableFrom.message}</p>
+                                        )}
                                     </div>
                                     <div>
-                                        <Label className="mb-2">
-                                            Nationality <Asterisk />
-                                        </Label>
-                                        <Input placeholder="Country" {...register("nationality")} />
+                                        <Label className="mb-2">Nationality <Asterisk /></Label>
+                                        <Input {...register("nationality")} />
                                         {errors.nationality && <p className="text-xs text-red-600 mt-1">{errors.nationality.message}</p>}
                                     </div>
                                     <div>
-                                        <Label className="mb-2">
-                                            Your LinkedIn URL <Asterisk />
-                                        </Label>
-                                        <Input placeholder=" Enter NA only if you do not have a LinkedIn." {...register("linkedin")} />
-                                        {errors.linkedin ? (
-                                            <p className="text-xs text-red-600 mt-1">{errors.linkedin.message}</p>
-                                        ) : (
-                                            <p className="text-xs text-muted-foreground mt-1">Enter NA only if you do not have a LinkedIn.</p>
+                                        <Label className="mb-2">LinkedIn URL <Asterisk /></Label>
+                                        <Input {...register("linkedin")} placeholder="Enter NA if none" />
+                                        {errors.linkedin && <p className="text-xs text-red-600 mt-1">{errors.linkedin.message}</p>}
+                                    </div>
+                                </div>
+                            </Section>
+                        )}
+
+                        {/* STEP 2: Education */}
+                        {step === 2 && (
+                            <Section icon={GraduationCap} title="Education">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <Label className="mb-2">Degree <Asterisk /></Label>
+                                        <Input {...register("degree")} />
+                                        {errors.degree && <p className="text-xs text-red-600 mt-1">{errors.degree.message}</p>}
+                                    </div>
+                                    <div>
+                                        <Label className="mb-2">Institution <Asterisk /></Label>
+                                        <Input {...register("institution")} />
+                                        {errors.institution && <p className="text-xs text-red-600 mt-1">{errors.institution.message}</p>}
+                                    </div>
+                                    <div>
+                                        <Label className="mb-2">Graduation Year <Asterisk /></Label>
+                                        <Input type="number" {...register("graduationYear", { valueAsNumber: true })} />
+                                        {errors.graduationYear && (
+                                            <p className="text-xs text-red-600 mt-1">{errors.graduationYear.message}</p>
                                         )}
                                     </div>
                                 </div>
+                            </Section>
+                        )}
 
-                                <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+                        {/* STEP 3: Work Eligibility */}
+                        {step === 3 && (
+                            <Section icon={BriefcaseBusiness} title="Work Eligibility">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
-                                        <Label className="mb-2">
-                                            Years of professional experience <Asterisk />
-                                        </Label>
-                                        <Input
-                                            type="number"
-                                            {...register("yearsOfExperience", { valueAsNumber: true })}
-                                            placeholder="Enter number of years"
-                                        />
-                                        {errors.yearsOfExperience ? (
-                                            <p className="text-xs text-red-600 mt-1">{errors.yearsOfExperience.message}</p>
-                                        ) : (
-                                            <p className="text-xs text-muted-foreground mt-1">Enter 0 if no experience yet</p>
+                                        <Label className="mb-2">Position <Asterisk /></Label>
+                                        <Input {...register("position")} />
+                                        {errors.position && <p className="text-xs text-red-600 mt-1">{errors.position.message}</p>}
+                                    </div>
+                                    <div>
+                                        <Label className="mb-2">Years of Experience <Asterisk /></Label>
+                                        <Input type="number" {...register("experienceYears", { valueAsNumber: true })} />
+                                        {errors.experienceYears && (
+                                            <p className="text-xs text-red-600 mt-1">{errors.experienceYears.message}</p>
                                         )}
                                     </div>
                                     <div>
-                                        <Label className="mb-2">Previous Job Title</Label>
-                                        <Input {...register("previousJobTitle")} />
+                                        <Label className="mb-2">VISA Type <Asterisk /></Label>
+                                        <Input {...register("visaType")} placeholder="e.g., OPT, H1B, CPT" />
+                                        {errors.visaType && <p className="text-xs text-red-600 mt-1">{errors.visaType.message}</p>}
                                     </div>
                                     <div>
-                                        <Label className="mb-2">Date Previous Job Started</Label>
+                                        <Label className="mb-2">EAD Start Date <Asterisk /></Label>
                                         <Controller
-                                            name="jobStartDate"
+                                            name="eadStartDate"
                                             control={control}
                                             render={({ field }) => (
                                                 <DatePicker
@@ -587,11 +404,14 @@ const App = () => {
                                                 />
                                             )}
                                         />
+                                        {errors.eadStartDate && (
+                                            <p className="text-xs text-red-600 mt-1">{errors.eadStartDate.message}</p>
+                                        )}
                                     </div>
                                     <div>
-                                        <Label className="mb-2">Date Previous Job Ended</Label>
+                                        <Label className="mb-2">EAD End Date <Asterisk /></Label>
                                         <Controller
-                                            name="jobEndDate"
+                                            name="eadEndDate"
                                             control={control}
                                             render={({ field }) => (
                                                 <DatePicker
@@ -603,94 +423,24 @@ const App = () => {
                                                 />
                                             )}
                                         />
+                                        {errors.eadEndDate && <p className="text-xs text-red-600 mt-1">{errors.eadEndDate.message}</p>}
                                     </div>
                                 </div>
+                            </Section>
+                        )}
 
+                        {/* STEP 4: Preferences */}
+                        {step === 4 && (
+                            <Section icon={ClipboardList} title="Preferences">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
-                                        <Label className="mb-2">
-                                            VISA Type <Asterisk />
-                                        </Label>
-                                        <Controller
-                                            name="visaType"
-                                            control={control}
-                                            render={({ field }) => (
-                                                <div>
-                                                    <Input {...field} />
-                                                    {errors.visaType ? (
-                                                        <p className="text-red-500 text-sm">{errors.visaType.message}</p>
-                                                    ) : (
-                                                        <p className="text-xs text-muted-foreground mt-1">For example, OPT, H1B or CPT</p>
-                                                    )}
-                                                </div>
-                                            )}
-                                        />
-                                    </div>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div>
-                                            <Label className="mb-2">
-                                                EAD Start Date <Asterisk />
-                                            </Label>
-                                            <Controller
-                                                name="eadStartDate"
-                                                control={control}
-                                                render={({ field }) => (
-                                                    <DatePicker
-                                                        selected={field.value}
-                                                        onChange={field.onChange}
-                                                        className="w-full border rounded-md p-2"
-                                                        placeholderText="MM/DD/YYYY"
-                                                        dateFormat="MM/dd/yyyy"
-                                                    />
-                                                )}
-                                            />
-                                            {errors.eadStartDate ? (
-                                                <p className="text-xs text-red-600 mt-1">{errors.eadStartDate.message}</p>
-                                            ) : (
-                                                <p className="text-xs text-muted-foreground mt-1">
-                                                    If you are a GC holder or USA Citizen mention 00/00/00
-                                                </p>
-                                            )}
-                                        </div>
-                                        <div>
-                                            <Label className="mb-2">
-                                                EAD End Date <Asterisk />
-                                            </Label>
-                                            <Controller
-                                                name="eadEndDate"
-                                                control={control}
-                                                render={({ field }) => (
-                                                    <DatePicker
-                                                        selected={field.value}
-                                                        onChange={field.onChange}
-                                                        className="w-full border rounded-md p-2"
-                                                        placeholderText="MM/DD/YYYY"
-                                                        dateFormat="MM/dd/yyyy"
-                                                    />
-                                                )}
-                                            />
-                                            {errors.eadEndDate ? (
-                                                <p className="text-xs text-red-600 mt-1">{errors.eadEndDate.message}</p>
-                                            ) : (
-                                                <p className="text-xs text-muted-foreground mt-1">
-                                                    If you are a GC holder or USA Citizen mention 00/00/00
-                                                </p>
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div>
-                                        <Label className="mb-2">
-                                            Apply for Full time jobs or internships? <Asterisk />
-                                        </Label>
+                                        <Label className="mb-2">Job Type <Asterisk /></Label>
                                         <Controller
                                             name="jobType"
                                             control={control}
                                             render={({ field }) => (
                                                 <Select onValueChange={field.onChange} value={field.value}>
-                                                    <SelectTrigger className="w-full">
+                                                    <SelectTrigger>
                                                         <SelectValue placeholder="Select" />
                                                     </SelectTrigger>
                                                     <SelectContent>
@@ -704,9 +454,7 @@ const App = () => {
                                         {errors.jobType && <p className="text-xs text-red-600 mt-1">{errors.jobType.message}</p>}
                                     </div>
                                     <div>
-                                        <Label className="mb-2">
-                                            Apply for W2 or 1099 jobs as well (Contract Jobs)? <Asterisk />
-                                        </Label>
+                                        <Label className="mb-2">Contract Type (W2/1099) <Asterisk /></Label>
                                         <Controller
                                             name="contractType"
                                             control={control}
@@ -722,65 +470,38 @@ const App = () => {
                                                 </Select>
                                             )}
                                         />
-                                        {errors.contractType && <p className="text-xs text-red-600 mt-1">{errors.contractType.message}</p>}
+                                        {errors.contractType && (
+                                            <p className="text-xs text-red-600 mt-1">{errors.contractType.message}</p>
+                                        )}
                                     </div>
-                                </div>
-
-                                <div>
-                                    <Label className="mb-2">
-                                        Preferred job positions <Asterisk />
-                                    </Label>
-                                    <Textarea
-                                        {...register("preferredPositions")}
-                                        placeholder="For example, 1. Project Manager 2. Assistant Project Manager 3. Human Resource Manager"
-                                    />
-                                    {errors.preferredPositions && (
-                                        <p className="text-xs text-red-600 mt-1">{errors.preferredPositions.message}</p>
-                                    )}
-                                    {!errors.preferredPositions && (
-                                        <p className="text-xs text-muted-foreground mt-1">
-                                            Ex, Software Developer, Project Manager, Business Analyst
-                                        </p>
-                                    )}
-                                </div>
-
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div>
-                                        <div>
-                                            <Label className="mb-2">Hourly wage expectation</Label>
-                                            <Input
-                                                type="number"
-                                                step="0.01"
-                                                {...register("hourlyWage", { valueAsNumber: true })}
-                                                placeholder="USD"
-                                            />
-                                            {errors.hourlyWage && <p className="text-xs text-red-600 mt-1">{errors.hourlyWage.message}</p>}
-                                        </div>
+                                    <div className="md:col-span-2">
+                                        <Label className="mb-2">Preferred Positions <Asterisk /></Label>
+                                        <Textarea
+                                            {...register("preferredPositions")}
+                                            placeholder="e.g., Software Developer, Project Manager"
+                                        />
+                                        {errors.preferredPositions && (
+                                            <p className="text-xs text-red-600 mt-1">{errors.preferredPositions.message}</p>
+                                        )}
                                     </div>
                                     <div>
-                                        <div>
-                                            <Label className="mb-2">
-                                                Annual salary expectation <Asterisk />
-                                            </Label>
-                                            <Input
-                                                type="number"
-                                                step="1000"
-                                                {...register("annualSalary", { valueAsNumber: true })}
-                                                placeholder="USD"
-                                                required
-                                            />
-                                            {errors.annualSalary && (
-                                                <p className="text-xs text-red-600 mt-1">{errors.annualSalary.message}</p>
-                                            )}
-                                        </div>
+                                        <Label className="mb-2">Hourly Wage Expectation</Label>
+                                        <Input type="number" step="0.01" {...register("hourlyWage", { valueAsNumber: true })} />
+                                        {errors.hourlyWage && <p className="text-xs text-red-600 mt-1">{errors.hourlyWage.message}</p>}
                                     </div>
-                                </div>
-
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
-                                        <Label className="mb-2">
-                                            If a company offers less than your expectation, can we apply? <Asterisk />
-                                        </Label>
+                                        <Label className="mb-2">Annual Salary Expectation <Asterisk /></Label>
+                                        <Input
+                                            type="number"
+                                            step="1000"
+                                            {...register("annualSalary", { valueAsNumber: true })}
+                                        />
+                                        {errors.annualSalary && (
+                                            <p className="text-xs text-red-600 mt-1">{errors.annualSalary.message}</p>
+                                        )}
+                                    </div>
+                                    <div>
+                                        <Label className="mb-2">Apply if offered less? <Asterisk /></Label>
                                         <Controller
                                             name="applyIfLess"
                                             control={control}
@@ -798,504 +519,131 @@ const App = () => {
                                             )}
                                         />
                                         {errors.applyIfLess && <p className="text-xs text-red-600 mt-1">{errors.applyIfLess.message}</p>}
-                                        <p className="text-xs text-muted-foreground mt-1">
-                                            Ex: You expect $100k but company offers 65–85k. Can we apply at the max they offer?
-                                        </p>
                                     </div>
                                     <div>
-                                        {watch("applyIfLess") === "other" && (
-                                            <div className="">
-                                                <Label className="mb-2">If you answered 'Other', please specify</Label>
-                                                <Input {...register("applyIfLessOther")} placeholder="Explain here..." />
-                                                {errors.applyIfLessOther && (
-                                                    <p className="text-xs text-red-600 mt-1">{errors.applyIfLessOther.message}</p>
-                                                )}
-                                            </div>
+                                        <Controller
+                                            name="applyIfLess"
+                                            control={control}
+                                            render={({ field }) => (
+                                                <>
+                                                    {field.value === "other" && (
+                                                        <div>
+                                                            <Label className="mb-2">Specify if Other</Label>
+                                                            <Input {...register("applyIfLessOther")} />
+                                                            {errors.applyIfLessOther && (
+                                                                <p className="text-xs text-red-600 mt-1">
+                                                                    {errors.applyIfLessOther.message}
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </>
+                                            )}
+                                        />
+                                    </div>
+                                </div>
+                            </Section>
+                        )}
+
+                        {/* STEP 5: Demographics */}
+                        {step === 5 && (
+                            <Section icon={Globe2} title="Demographics & Messages">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <Label className="mb-2">Gender <Asterisk /></Label>
+                                        <Controller
+                                            name="gender"
+                                            control={control}
+                                            render={({ field }) => (
+                                                <Select onValueChange={field.onChange} value={field.value}>
+                                                    <SelectTrigger>
+                                                        <SelectValue placeholder="Select" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="male">Male</SelectItem>
+                                                        <SelectItem value="female">Female</SelectItem>
+                                                        <SelectItem value="other">Other</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                            )}
+                                        />
+                                        {errors.gender && <p className="text-xs text-red-600 mt-1">{errors.gender.message}</p>}
+                                    </div>
+                                    <div>
+                                        <Label className="mb-2">Hispanic/Latino? <Asterisk /></Label>
+                                        <Controller
+                                            name="isHispanic"
+                                            control={control}
+                                            render={({ field }) => (
+                                                <Select onValueChange={field.onChange} value={field.value}>
+                                                    <SelectTrigger>
+                                                        <SelectValue placeholder="Select" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="yes">Yes</SelectItem>
+                                                        <SelectItem value="no">No</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                            )}
+                                        />
+                                        {errors.isHispanic && <p className="text-xs text-red-600 mt-1">{errors.isHispanic.message}</p>}
+                                    </div>
+                                    <div className="md:col-span-2">
+                                        <Label className="mb-2">Race <Asterisk /></Label>
+                                        <Input {...register("race")} />
+                                        {errors.race && <p className="text-xs text-red-600 mt-1">{errors.race.message}</p>}
+                                    </div>
+                                    <div>
+                                        <Label className="mb-2">Veteran? <Asterisk /></Label>
+                                        <Controller
+                                            name="isVeteran"
+                                            control={control}
+                                            render={({ field }) => (
+                                                <Select onValueChange={field.onChange} value={field.value}>
+                                                    <SelectTrigger>
+                                                        <SelectValue placeholder="Select" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="yes">Yes</SelectItem>
+                                                        <SelectItem value="no">No</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                            )}
+                                        />
+                                        {errors.isVeteran && <p className="text-xs text-red-600 mt-1">{errors.isVeteran.message}</p>}
+                                    </div>
+                                    <div>
+                                        <Label className="mb-2">Disability? <Asterisk /></Label>
+                                        <Controller
+                                            name="hasDisability"
+                                            control={control}
+                                            render={({ field }) => (
+                                                <Select onValueChange={field.onChange} value={field.value}>
+                                                    <SelectTrigger>
+                                                        <SelectValue placeholder="Select" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="yes">Yes</SelectItem>
+                                                        <SelectItem value="no">No</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                            )}
+                                        />
+                                        {errors.hasDisability && (
+                                            <p className="text-xs text-red-600 mt-1">{errors.hasDisability.message}</p>
                                         )}
                                     </div>
-                                </div>
-                            </Section>
-                        )}
-
-                        {/* STEP 2 */}
-                        {step === 2 && (
-                            <Section icon={GraduationCap} title="Education">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div>
-                                        <Label className="mb-2">Do you have a bachelor’s degree?</Label>
-                                        <Select>
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="Select" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="yes">Yes</SelectItem>
-                                                <SelectItem value="no">No</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                    <div>
-                                        <Label className="mb-2">University/College (Bachelor’s)</Label>
-                                        <Input />
-                                    </div>
-                                    <div>
-                                        <Label className="mb-2">Start Date</Label>
-                                        <Input type="date" />
-                                    </div>
-                                    <div>
-                                        <Label className="mb-2">End Date</Label>
-                                        <Input type="date" />
-                                    </div>
-                                    <div>
-                                        <Label className="mb-2">CGPA Bachelor's</Label>
-                                        <Input />
-                                    </div>
-                                    <div>
-                                        <Label className="mb-2">
-                                            Highest education level achieved <Asterisk />
-                                        </Label>
-                                        <Select>
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="Select" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="masters">Master of Science</SelectItem>
-                                                <SelectItem value="other">Other</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                    <div>
-                                        <Label className="mb-2">If you chose 'Other', specify</Label>
-                                        <Input />
+                                    <div className="md:col-span-2">
+                                        <Label className="mb-2">Message to Hiring Manager <Asterisk /></Label>
+                                        <Textarea {...register("messageToHM")} maxLength={10000} />
+                                        {errors.messageToHM && <p className="text-xs text-red-600 mt-1">{errors.messageToHM.message}</p>}
                                     </div>
                                     <div className="md:col-span-2">
-                                        <Label className="mb-2">Languages known</Label>
-                                        <Input placeholder="Comma-separated" />
-                                    </div>
-                                    <div className="md:col-span-2">
-                                        <Label className="mb-2">
-                                            Certification (If any) <Asterisk />
-                                        </Label>
-                                        <Input required />
-                                    </div>
-                                </div>
-                            </Section>
-                        )}
-
-                        {/* STEP 3 */}
-                        {step === 3 && (
-                            <Section icon={BriefcaseBusiness} title="Work Eligibility & Preferences">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div>
-                                        <Label className="mb-2">
-                                            Are you at least 18 years of age? <Asterisk />
-                                        </Label>
-                                        <Select>
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="Select" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="yes">Yes</SelectItem>
-                                                <SelectItem value="no">No</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                    <div>
-                                        <Label className="mb-2">
-                                            Date Of Birth <Asterisk />
-                                        </Label>
-                                        <Input type="date" required />
-                                    </div>
-                                    <div>
-                                        <Label className="mb-2">
-                                            Legally authorized to work in the United States? <Asterisk />
-                                        </Label>
-                                        <Select>
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="Select" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="yes">Yes</SelectItem>
-                                                <SelectItem value="no">No</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                    <div>
-                                        <Label className="mb-2">Will you now or in future require sponsorship?</Label>
-                                        <Select>
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="Select" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="yes">Yes</SelectItem>
-                                                <SelectItem value="no">No</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                    <div className="md:col-span-2">
-                                        <Label className="mb-2">If YES above, will you require sponsorship right away or in future</Label>
-                                        <Input placeholder="In Future (New H1B filing / Green card filing)" />
-                                    </div>
-                                    <div>
-                                        <Label className="mb-2">
-                                            Total number of hours you prefer per week <Asterisk />
-                                        </Label>
-                                        <Input placeholder="ex, 40 hr/week" required />
-                                    </div>
-                                    <div>
-                                        <Label className="mb-2">
-                                            Are you willing to travel? <Asterisk />
-                                        </Label>
-                                        <Select>
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="Select" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="yes">Yes</SelectItem>
-                                                <SelectItem value="no">No</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                    <div>
-                                        <Label className="mb-2">
-                                            How much percentage will you travel? <Asterisk />
-                                        </Label>
-                                        <Input placeholder="0-25%" required />
-                                    </div>
-                                    <div className="md:col-span-2">
-                                        <Label className="mb-2">
-                                            How far will you travel? <span className="text-muted-foreground">(Answer in miles)</span>
-                                        </Label>
-                                        <TextareaWithCounter
-                                            maxLength={1000}
-                                            value={travelMilesNotes}
-                                            onChange={(e: { target: { value: SetStateAction<string> } }) =>
-                                                setTravelMilesNotes(e.target.value)
-                                            }
-                                            placeholder="Describe typical travel distance in miles"
-                                            required={true}
-                                        />
-                                    </div>
-                                    <div>
-                                        <Label className="mb-2">
-                                            Willing to Travel Internationally? <Asterisk />
-                                        </Label>
-                                        <Select>
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="Select" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="yes">Yes</SelectItem>
-                                                <SelectItem value="no">No</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                    <div>
-                                        <Label className="mb-2">
-                                            Are you willing to work anywhere within the USA? <Asterisk />
-                                        </Label>
-                                        <Select>
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="Select" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="yes">Yes</SelectItem>
-                                                <SelectItem value="no">No</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                    <div>
-                                        <Label className="mb-2">
-                                            Are you willing to relocate? <Asterisk />
-                                        </Label>
-                                        <Select>
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="Select" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="yes">Yes</SelectItem>
-                                                <SelectItem value="no">No</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                    <div className="md:col-span-2">
-                                        <Label className="mb-2">If yes to relocate, preferred location</Label>
-                                        <Input />
-                                    </div>
-                                    <div>
-                                        <Label className="mb-2">
-                                            For a REMOTE job, willing to work anywhere within the USA? <Asterisk />
-                                        </Label>
-                                        <Select>
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="Select" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="yes">Yes</SelectItem>
-                                                <SelectItem value="no">No</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                    <div>
-                                        <Label className="mb-2">
-                                            Will you need relocation help? <Asterisk />
-                                        </Label>
-                                        <Select>
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="Select" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="yes">Yes</SelectItem>
-                                                <SelectItem value="no">No</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                    <div className="md:col-span-2">
-                                        <Label className="mb-2">Reference Details</Label>
-                                        <Input placeholder="Can be someone from your past job or university professor" />
-                                    </div>
-                                    <div>
-                                        <Label className="mb-2">
-                                            Do you have a valid driving license? <Asterisk />
-                                        </Label>
-                                        <Select>
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="Select" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="yes">Yes</SelectItem>
-                                                <SelectItem value="no">No</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                    <div>
-                                        <Label className="mb-2">If yes, licence type</Label>
-                                        <Input placeholder="Class D" />
-                                    </div>
-                                    <div>
-                                        <Label className="mb-2">
-                                            Covid-19 Vaccine status <Asterisk />
-                                        </Label>
-                                        <Input required />
-                                    </div>
-                                    <div>
-                                        <Label className="mb-2">Preferred Shift</Label>
-                                        <Select>
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="1. Day  2. Night  3. Evening" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="day">Day Shift</SelectItem>
-                                                <SelectItem value="night">Night Shift</SelectItem>
-                                                <SelectItem value="evening">Evening Shift</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                    <div>
-                                        <Label className="mb-2">
-                                            Willing to work on weekend (if required) <Asterisk />
-                                        </Label>
-                                        <Select>
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="Select" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="yes">Yes</SelectItem>
-                                                <SelectItem value="no">No</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                    <div>
-                                        <Label className="mb-2">
-                                            Have you ever been convicted of a criminal offense? <Asterisk />
-                                        </Label>
-                                        <Select>
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="Select" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="yes">Yes</SelectItem>
-                                                <SelectItem value="no">No</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                    <div className="md:col-span-2">
-                                        <Label className="mb-2">If Yes, please explain</Label>
-                                        <Textarea placeholder="Details" />
-                                    </div>
-                                </div>
-                            </Section>
-                        )}
-
-                        {/* STEP 4 */}
-                        {step === 4 && (
-                            <Section icon={ClipboardList} title="Demographics & Messages">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div>
-                                        <Label className="mb-2">
-                                            Gender <Asterisk />
-                                        </Label>
-                                        <Select>
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="Select" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="male">Male</SelectItem>
-                                                <SelectItem value="female">Female</SelectItem>
-                                                <SelectItem value="other">Other</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                    <div>
-                                        <Label className="mb-2">
-                                            Are you Hispanic/Latino? <Asterisk />
-                                        </Label>
-                                        <Select>
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="Select" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="yes">Yes</SelectItem>
-                                                <SelectItem value="no">No</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                    <div className="md:col-span-2">
-                                        <Label>
-                                            Race <Asterisk />
-                                        </Label>
-                                        <Input placeholder="e.g., Asian" required />
-                                    </div>
-                                    <div>
-                                        <Label className="mb-2">
-                                            Are you a Veteran? <Asterisk />
-                                        </Label>
-                                        <Select>
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="Select" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="yes">Yes</SelectItem>
-                                                <SelectItem value="no">No</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                    <div>
-                                        <Label className="mb-2">
-                                            Do you have a disability? <Asterisk />
-                                        </Label>
-                                        <Select>
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="Select" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="yes">Yes</SelectItem>
-                                                <SelectItem value="no">No</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                    <div className="md:col-span-2">
-                                        <Label className="mb-2">
-                                            Your message to the Hiring Manager <Asterisk />
-                                        </Label>
-                                        <TextareaWithCounter
-                                            maxLength={10000}
-                                            value={msgHM}
-                                            onChange={(e: { target: { value: SetStateAction<string> } }) => setMsgHM(e.target.value)}
-                                            placeholder="Write a concise message for the hiring manager"
-                                            required
-                                        />
-                                    </div>
-                                    <div className="md:col-span-2">
-                                        <Label className="mb-2">
-                                            Your message to the Jack Meow Job Hunt Specialist(s) <Asterisk />
-                                        </Label>
-                                        <TextareaWithCounter
-                                            maxLength={100000}
-                                            value={msgSpecialist}
-                                            onChange={(e: { target: { value: SetStateAction<string> } }) => setMsgSpecialist(e.target.value)}
-                                            placeholder="Share anything that helps us apply on your behalf"
-                                            required
-                                        />
-                                    </div>
-                                </div>
-                            </Section>
-                        )}
-
-                        {/* STEP 5 */}
-                        {step === 5 && (
-                            <Section icon={Globe2} title="Final Section">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div>
-                                        <Label className="mb-2">
-                                            Do you want us to apply for jobs all over the USA? <Asterisk />
-                                        </Label>
-                                        <Select>
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="Select" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="yes">Yes</SelectItem>
-                                                <SelectItem value="no">No</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                    <div className="md:col-span-2">
-                                        <Label>If NO above, list your location preference</Label>
-                                        <Input />
-                                    </div>
-                                    <div>
-                                        <Label className="mb-2">
-                                            For REMOTE jobs, can we apply all over the USA? <Asterisk />
-                                        </Label>
-                                        <Select>
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="Select" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="yes">Yes</SelectItem>
-                                                <SelectItem value="no">No</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                    <div className="md:col-span-2">
-                                        <Label className="mb-2">If NO above, list location preference for REMOTE jobs</Label>
-                                        <Input />
-                                    </div>
-                                    <div className="md:col-span-2">
-                                        <Label className="mb-2">
-                                            Is there any company you DO NOT want us to apply to? <Asterisk />
-                                        </Label>
-                                        <Textarea />
-                                    </div>
-                                    <div>
-                                        <Label className="mb-2">
-                                            Your Whatsapp number for Customer Support <Asterisk />
-                                        </Label>
-                                        <Input />
-                                    </div>
-                                    <div>
-                                        <Label className="mb-2">
-                                            Are you a new customer or a returning customer? <Asterisk />
-                                        </Label>
-                                        <Select>
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="Select" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="new">New Customer</SelectItem>
-                                                <SelectItem value="returning">Returning Customer</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                    <div className="md:col-span-2">
-                                        <Label className="mb-2">
-                                            How did you hear about Jack Meow? <Asterisk />
-                                        </Label>
-                                        <Input />
-                                    </div>
-                                    <div className="md:col-span-2">
-                                        <Label className="mb-2">If your friend referred us, please mention their name</Label>
-                                        <Input />
+                                        <Label className="mb-2">Message to Specialist <Asterisk /></Label>
+                                        <Textarea {...register("messageToSpecialist")} maxLength={100000} />
+                                        {errors.messageToSpecialist && (
+                                            <p className="text-xs text-red-600 mt-1">{errors.messageToSpecialist.message}</p>
+                                        )}
                                     </div>
                                 </div>
                             </Section>
@@ -1303,32 +651,19 @@ const App = () => {
                     </CardContent>
                 </Card>
 
-                {/* Sticky actions */}
+                {/* Navigation */}
                 <div className="mt-6">
-                    <div className="mx-auto max-w-5xl flex items-center justify-between gap-4 rounded-2xl bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60 shadow-lg border p-3">
-                        {/* <div className="flex gap-2 justify-between w-full">
-              <Button variant="outline" onClick={() => go(-1)} disabled={step <= 1}>Back</Button>
-
-              {step < totalSteps ? (
-                <Button type="button" onClick={() => go(1)}>Next</Button>
-              ) : (
-                <Button type="submit">Submit</Button>
-              )}
-            </div> */}
-
-                        <div className="flex gap-2 justify-between w-full">
-                            <Button variant="outline" onClick={() => prevStep()} disabled={step <= 1}>
-                                Back
+                    <div className="mx-auto max-w-5xl flex items-center justify-between gap-4 rounded-2xl bg-background/80 backdrop-blur shadow-lg border p-3">
+                        <Button variant="outline" onClick={prevStep} disabled={step === 1}>
+                            Back
+                        </Button>
+                        {step < totalSteps ? (
+                            <Button type="button" onClick={nextStep}>
+                                Next
                             </Button>
-
-                            {step < totalSteps ? (
-                                <Button type="button" onClick={nextStep}>
-                                    Next
-                                </Button>
-                            ) : (
-                                <Button type="submit">Submit</Button>
-                            )}
-                        </div>
+                        ) : (
+                            <Button type="submit">Submit</Button>
+                        )}
                     </div>
                 </div>
             </form>
